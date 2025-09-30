@@ -7,30 +7,24 @@ import zipfile
 
 app = Flask(__name__)
 
-# PMD version and URLs
+# PMD setup
 PMD_VERSION = "7.17.0"
-PMD_ZIP = f"pmd-bin-{PMD_VERSION}.zip"
-PMD_DIR = f"/tmp/pmd-bin-{PMD_VERSION}"   # unzipped folder
+LOCAL_ZIP_PATH = os.path.join("pmd", f"pmd-bin-{PMD_VERSION}.zip")  # put ZIP in project /pmd folder
+PMD_DIR = f"/tmp/pmd-bin-{PMD_VERSION}"  # unzipped folder in /tmp
 PMD_PATH = f"{PMD_DIR}/bin/run.sh"
-PMD_URL = f"https://github.com/pmd/pmd/releases/download/pmd_releases/{PMD_VERSION}/{PMD_ZIP}"
 RULESET = f"{PMD_DIR}/rulesets/apex/quickstart.xml"
 
 
 def setup_pmd():
-    """Download and unzip PMD if not already present"""
+    """Unzip PMD if not already present"""
     if not os.path.exists(PMD_PATH):
         try:
-            # Download PMD ZIP
-            subprocess.run(["curl", "-L", "-o", PMD_ZIP, PMD_URL], check=True)
-
-            # Check file size (basic validation)
-            if os.path.getsize(PMD_ZIP) < 1024:
-                return {"status": "error", "message": "Downloaded PMD ZIP is too small, likely invalid."}
+            if not os.path.exists(LOCAL_ZIP_PATH):
+                return {"status": "error", "message": f"PMD ZIP not found at {LOCAL_ZIP_PATH}"}
 
             # Unzip using Python's zipfile
-            with zipfile.ZipFile(PMD_ZIP, 'r') as zip_ref:
+            with zipfile.ZipFile(LOCAL_ZIP_PATH, 'r') as zip_ref:
                 zip_ref.extractall("/tmp/")
-            os.remove(PMD_ZIP)
 
             # Make run.sh executable
             subprocess.run(["chmod", "+x", PMD_PATH], check=True)
