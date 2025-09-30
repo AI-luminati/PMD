@@ -6,9 +6,9 @@ import json
 
 app = Flask(__name__)
 
-# PMD command (run.sh is in PATH via Dockerfile)
-PMD_CMD = "run.sh"
-RULESET = "rulesets/apex/quickstart.xml"
+# Correct PMD executable
+PMD_CMD = "/opt/pmd-dist-7.17.0/bin/pmd"
+RULESET = "/opt/pmd-dist-7.17.0/rulesets/apex/quickstart.xml"
 
 @app.route("/run", methods=["POST"])
 def run_pmd():
@@ -22,22 +22,28 @@ def run_pmd():
         name = cls.get("name", "UnknownClass")
         source_code = cls.get("source", "")
 
-        # Write class to temp file (UTF-8)
+        # Write class to temp file
         with tempfile.NamedTemporaryFile(delete=False, suffix=".cls", mode="w", encoding="utf-8") as tmp:
             tmp.write(source_code)
             tmp_path = tmp.name
 
         try:
-            result = subprocess.run([
-                PMD_CMD,
-                "check",
-                "-d", tmp_path,
-                "-R", RULESET,
-                "-f", "json"
-            ], capture_output=True, text=True, check=True)
+            result = subprocess.run(
+                [
+                    PMD_CMD,
+                    "check",
+                    "-d", tmp_path,
+                    "-R", RULESET,
+                    "-f", "json"
+                ],
+                capture_output=True,
+                text=True,
+                check=True
+            )
 
             parsed_output = json.loads(result.stdout) if result.stdout else {}
-            for f in parsed_output.get("files", []):
+            files = parsed_output.get("files", [])
+            for f in files:
                 for v in f.get("violations", []):
                     v["className"] = name
                     combined_violations.append(v)
