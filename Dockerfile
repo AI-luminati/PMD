@@ -1,20 +1,20 @@
 # Base image with Java
 FROM openjdk:17-slim
 
-# Install Python3, pip, curl, unzip
+# Install Python3, pip, curl, unzip, build dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 python3-pip curl unzip \
+    python3 python3-pip curl unzip build-essential python3-dev libffi-dev libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Upgrade pip to latest
-RUN python3 -m pip install --upgrade pip
+# Upgrade pip, setuptools, wheel
+RUN python3 -m pip install --upgrade pip setuptools wheel
 
 # Set PMD version
 ENV PMD_VERSION=7.17.0
 ENV PMD_DIR=/opt/pmd-dist-$PMD_VERSION
 ENV PATH=$PMD_DIR/bin:$PATH
 
-# Download PMD correctly
+# Download PMD
 RUN curl -L -O https://github.com/pmd/pmd/releases/download/pmd_releases/7.17.0/pmd-dist-7.17.0-bin.zip \
     && unzip pmd-dist-7.17.0-bin.zip -d /opt/ \
     && rm pmd-dist-7.17.0-bin.zip
@@ -29,5 +29,5 @@ RUN python3 -m pip install --no-cache-dir -r requirements.txt
 # Expose port
 EXPOSE 5000
 
-# Start Flask
+# Start Flask app
 CMD ["python3", "app.py"]
