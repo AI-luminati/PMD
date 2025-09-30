@@ -12,19 +12,21 @@ app = Flask(__name__)
 PMD_VERSION = "7.17.0"
 PMD_ZIP = f"pmd-dist-{PMD_VERSION}-bin.zip"
 PMD_DIR = f"/tmp/pmd-bin-{PMD_VERSION}"  # unzipped folder
-PMD_PATH = f"{PMD_DIR}/bin/pmd"  # PMD executable
+PMD_PATH = f"{PMD_DIR}/bin/pmd"         # executable
 PMD_URL = f"https://github.com/pmd/pmd/releases/download/pmd_releases%2F{PMD_VERSION}/{PMD_ZIP}"
-RULESET = f"{PMD_DIR}/rulesets/apex/quickstart.xml"
+
+# Download a valid Apex ruleset XML to /tmp
+RULESET_URL = "https://raw.githubusercontent.com/pmd/pmd/pmd_releases/7.17.0/rulesets/apex/quickstart.xml"
+RULESET_FILE = f"/tmp/quickstart.xml"
 
 
 def setup_pmd():
-    """Download and unzip PMD if not already present"""
+    """Download PMD ZIP, unzip it, and make the executable ready"""
     if not os.path.exists(PMD_PATH):
         try:
             zip_tmp_path = f"/tmp/{PMD_ZIP}"
-            # Download PMD ZIP if missing
+            # Download PMD ZIP
             if not os.path.exists(zip_tmp_path):
-                print("Downloading PMD ZIP...")
                 urllib.request.urlretrieve(PMD_URL, zip_tmp_path)
 
             # Unzip
@@ -38,14 +40,16 @@ def setup_pmd():
         except Exception as e:
             return {"status": "error", "message": f"PMD setup failed: {str(e)}"}
 
+    # Download ruleset XML if missing
+    if not os.path.exists(RULESET_FILE):
+        urllib.request.urlretrieve(RULESET_URL, RULESET_FILE)
+
     return {"status": "ok"}
 
 
 @app.route("/", methods=["GET"])
 def home():
-    return jsonify({
-        "message": "PMD Flask API is running. Use POST /analyze to analyze Apex classes."
-    })
+    return jsonify({"message": "PMD Flask API is running. POST /analyze to analyze Apex classes."})
 
 
 @app.route("/analyze", methods=["POST"])
@@ -71,21 +75,22 @@ def analyze_apex_classes():
             tmp_path = tmp.name
 
         try:
-            # Run PMD check
+            # Run PMD executable
             result = subprocess.run([
                 PMD_PATH,
                 "check",
                 "-d", tmp_path,
-                "-R", RULESET,
+                "-R", RULESET_FILE,
                 "-f", "json"
             ], capture_output=True, text=True)
 
             os.remove(tmp_path)
 
+            # Collect warnings
             if result.stderr:
                 warnings_list.append(f"Class {name}: {result.stderr.strip()}")
 
-            # Parse JSON output
+            # Parse violations
             parsed_output = json.loads(result.stdout) if result.stdout else {}
             files = parsed_output.get("files", [])
             for f in files:
@@ -96,10 +101,7 @@ def analyze_apex_classes():
         except Exception as e:
             combined_violations.append({"parseError": str(e), "className": name})
 
-    return jsonify({
-        "violations": combined_violations,
-        "warnings": warnings_list
-    })
+    return jsonify({"violations": combined_violations, "warnings": warnings_list})
 
 
 if __name__ == "__main__":
