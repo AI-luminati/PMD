@@ -18,22 +18,39 @@ RULESET = f"{PMD_DIR}/rulesets/apex/quickstart.xml"
 def ensure_pmd():
     """Download & extract PMD only if not already available"""
     if not os.path.exists(PMD_DIR):
-        os.makedirs("/tmp", exist_ok=True)
-        zip_path = f"/tmp/pmd-{PMD_VERSION}.zip"
-        print(f"[PMD] Downloading {PMD_ZIP_URL} ...")
-        urllib.request.urlretrieve(PMD_ZIP_URL, zip_path)
-        with zipfile.ZipFile(zip_path, "r") as zip_ref:
-            zip_ref.extractall("/tmp")
-        os.remove(zip_path)
-        os.chmod(PMD_CMD, 0o755)
-        print(f"[PMD] Ready at {PMD_CMD}")
+        try:
+            os.makedirs("/tmp", exist_ok=True)
+            zip_path = f"/tmp/pmd-{PMD_VERSION}.zip"
+
+            print(f"[PMD] Downloading {PMD_ZIP_URL} ...")
+            urllib.request.urlretrieve(PMD_ZIP_URL, zip_path)
+
+            print("[PMD] Extracting...")
+            with zipfile.ZipFile(zip_path, "r") as zip_ref:
+                zip_ref.extractall("/tmp")
+
+            os.remove(zip_path)
+            os.chmod(PMD_CMD, 0o755)
+            print(f"[PMD] Ready at {PMD_CMD}")
+
+        except Exception as e:
+            print(f"[PMD ERROR] {e}")
+            raise
+
+
+@app.route("/")
+def home():
+    return "✅ Flask is running! Use POST /run to analyze classes."
 
 
 @app.route("/run", methods=["POST"])
 def run_pmd():
-    ensure_pmd()  # Lazy-load PMD here
+    try:
+        ensure_pmd()  # Lazy load PMD when first needed
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"PMD setup failed: {e}"}), 500
 
-    data = request.get_json()
+    data = request.get_json(force=True, silent=True) or {}
     classes = data.get("classes", [])
 
     combined_violations = []
