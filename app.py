@@ -3,10 +3,11 @@ import subprocess
 import tempfile
 import os
 import json
+import zipfile
 
 app = Flask(__name__)
 
-# PMD version and Linux ZIP
+# PMD version and URLs
 PMD_VERSION = "7.17.0"
 PMD_ZIP = f"pmd-bin-{PMD_VERSION}.zip"
 PMD_DIR = f"/tmp/pmd-bin-{PMD_VERSION}"   # unzipped folder
@@ -19,13 +20,16 @@ def setup_pmd():
     """Download and unzip PMD if not already present"""
     if not os.path.exists(PMD_PATH):
         try:
-            # Download Linux PMD ZIP
-            subprocess.run([
-                "curl", "-L", "-o", PMD_ZIP, PMD_URL
-            ], check=True)
+            # Download PMD ZIP
+            subprocess.run(["curl", "-L", "-o", PMD_ZIP, PMD_URL], check=True)
 
-            # Unzip to /tmp
-            subprocess.run(["unzip", "-o", PMD_ZIP, "-d", "/tmp/"], check=True)
+            # Check file size (basic validation)
+            if os.path.getsize(PMD_ZIP) < 1024:
+                return {"status": "error", "message": "Downloaded PMD ZIP is too small, likely invalid."}
+
+            # Unzip using Python's zipfile
+            with zipfile.ZipFile(PMD_ZIP, 'r') as zip_ref:
+                zip_ref.extractall("/tmp/")
             os.remove(PMD_ZIP)
 
             # Make run.sh executable
@@ -61,12 +65,12 @@ def analyze_apex_classes():
         name = cls.get("name", "UnknownClass")
         source_code = cls.get("source", "")
 
-        # Write source to temp file
+        # Write source to temporary .cls file
         with tempfile.NamedTemporaryFile(delete=False, suffix=".cls", mode="w", encoding="utf-8") as tmp:
             tmp.write(source_code)
             tmp_path = tmp.name
 
-        # Run PMD
+        # Run PMD analysis
         try:
             result = subprocess.run([
                 PMD_PATH,
