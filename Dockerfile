@@ -1,24 +1,12 @@
-# Base image with Java
 FROM openjdk:17-slim
 
-# Install Python, pip, curl, unzip, build dependencies
+# Install Python, pip, bash, unzip, curl, build tools
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 python3-pip curl unzip build-essential python3-dev libffi-dev libssl-dev bash \
+    python3 python3-pip bash unzip curl build-essential python3-dev libffi-dev libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Upgrade pip
 RUN python3 -m pip install --upgrade pip setuptools wheel
-
-# Set PMD path
-ENV PMD_VERSION=7.17.0
-ENV PMD_DIR=/opt/pmd-dist-$PMD_VERSION
-ENV PATH=$PMD_DIR/bin:$PATH
-
-# Download PMD and make run.sh executable
-RUN curl -L -O https://github.com/pmd/pmd/releases/download/pmd_releases/7.17.0/pmd-dist-7.17.0-bin.zip \
-    && unzip pmd-dist-7.17.0-bin.zip -d /opt/ \
-    && rm pmd-dist-7.17.0-bin.zip \
-    && chmod +x /opt/pmd-dist-7.17.0/bin/run.sh
 
 # Copy Flask app
 WORKDIR /app
@@ -27,8 +15,8 @@ COPY . /app
 # Install Python dependencies
 RUN python3 -m pip install --no-cache-dir -r requirements.txt
 
-# Expose port
+# Expose Flask port
 EXPOSE 5000
 
-# Start Flask
+# Start Flask app
 CMD ["python3", "app.py"]
