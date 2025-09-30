@@ -6,15 +6,15 @@ ENV PMD_VERSION=7.17.0
 ENV PMD_DIR=/opt/pmd-bin-$PMD_VERSION
 ENV PATH=$PMD_DIR/bin:$PATH
 
-# Install required packages for Java + wget + unzip
+# Install dependencies for Java + wget + unzip
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    openjdk-17-jdk-headless \
     wget \
     unzip \
-    ca-certificates \
     curl \
+    ca-certificates \
     gnupg \
     dirmngr \
+    openjdk-17-jdk-headless \
     && rm -rf /var/lib/apt/lists/*
 
 # Download PMD
