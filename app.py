@@ -3,12 +3,29 @@ import subprocess
 import tempfile
 import os
 import json
+import urllib.request
+import zipfile
 
 app = Flask(__name__)
 
-# Correct PMD Linux executable
-PMD_CMD = "/opt/pmd-dist-7.17.0/bin/run.sh"
-RULESET = "/opt/pmd-dist-7.17.0/rulesets/apex/quickstart.xml"
+# PMD setup
+PMD_VERSION = "7.17.0"
+PMD_ZIP_URL = f"https://github.com/pmd/pmd/releases/download/pmd_releases/{PMD_VERSION}/pmd-dist-{PMD_VERSION}-bin.zip"
+PMD_DIR = f"/tmp/pmd-dist-{PMD_VERSION}"
+PMD_CMD = f"{PMD_DIR}/bin/run.sh"
+RULESET = f"{PMD_DIR}/rulesets/apex/quickstart.xml"
+
+# Download and extract PMD at runtime if not already done
+if not os.path.exists(PMD_DIR):
+    os.makedirs("/tmp", exist_ok=True)
+    zip_path = f"/tmp/pmd-{PMD_VERSION}.zip"
+    print(f"Downloading PMD {PMD_VERSION}...")
+    urllib.request.urlretrieve(PMD_ZIP_URL, zip_path)
+    with zipfile.ZipFile(zip_path, "r") as zip_ref:
+        zip_ref.extractall("/tmp")
+    os.remove(zip_path)
+    os.chmod(PMD_CMD, 0o755)
+    print(f"PMD ready at {PMD_CMD}")
 
 @app.route("/run", methods=["POST"])
 def run_pmd():
@@ -22,13 +39,12 @@ def run_pmd():
         name = cls.get("name", "UnknownClass")
         source_code = cls.get("source", "")
 
-        # Write source code to temp file
+        # Write class to temp file
         with tempfile.NamedTemporaryFile(delete=False, suffix=".cls", mode="w", encoding="utf-8") as tmp:
             tmp.write(source_code)
             tmp_path = tmp.name
 
         try:
-            # Run PMD via bash
             result = subprocess.run(
                 ["bash", PMD_CMD, "check", "-d", tmp_path, "-R", RULESET, "-f", "json"],
                 capture_output=True,
@@ -36,7 +52,6 @@ def run_pmd():
                 check=True
             )
 
-            # Parse PMD JSON output
             parsed_output = json.loads(result.stdout) if result.stdout else {}
             files = parsed_output.get("files", [])
             for f in files:
@@ -44,7 +59,6 @@ def run_pmd():
                     v["className"] = name
                     combined_violations.append(v)
 
-            # Capture warnings
             if result.stderr:
                 warnings_list.append(f"Class {name}: {result.stderr.strip()}")
 
