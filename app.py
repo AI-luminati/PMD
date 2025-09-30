@@ -15,8 +15,8 @@ PMD_DIR = f"/tmp/pmd-bin-{PMD_VERSION}"  # unzipped folder
 PMD_PATH = f"{PMD_DIR}/bin/pmd"         # executable
 PMD_URL = f"https://github.com/pmd/pmd/releases/download/pmd_releases%2F{PMD_VERSION}/{PMD_ZIP}"
 
-# Download a valid Apex ruleset XML to /tmp
-RULESET_URL = "https://raw.githubusercontent.com/pmd/pmd/pmd_releases/7.17.0/rulesets/apex/quickstart.xml"
+# Correct raw URL for Apex quickstart.xml
+RULESET_URL = "https://raw.githubusercontent.com/pmd/pmd/main/pmd-apex/src/main/resources/rulesets/apex/quickstart.xml"
 RULESET_FILE = f"/tmp/quickstart.xml"
 
 
