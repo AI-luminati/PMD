@@ -6,6 +6,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 python3-pip curl unzip \
     && rm -rf /var/lib/apt/lists/*
 
+# Upgrade pip to latest
+RUN python3 -m pip install --upgrade pip
+
 # Set PMD version
 ENV PMD_VERSION=7.17.0
 ENV PMD_DIR=/opt/pmd-dist-$PMD_VERSION
@@ -21,7 +24,7 @@ WORKDIR /app
 COPY . /app
 
 # Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+RUN python3 -m pip install --no-cache-dir -r requirements.txt
 
 # Expose port
 EXPOSE 5000
