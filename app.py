@@ -6,8 +6,8 @@ import json
 
 app = Flask(__name__)
 
-# Correct PMD executable
-PMD_CMD = "/opt/pmd-dist-7.17.0/bin/pmd"
+# Correct PMD Linux executable
+PMD_CMD = "/opt/pmd-dist-7.17.0/bin/run.sh"
 RULESET = "/opt/pmd-dist-7.17.0/rulesets/apex/quickstart.xml"
 
 @app.route("/run", methods=["POST"])
@@ -22,25 +22,21 @@ def run_pmd():
         name = cls.get("name", "UnknownClass")
         source_code = cls.get("source", "")
 
-        # Write class to temp file
+        # Write source code to temp file
         with tempfile.NamedTemporaryFile(delete=False, suffix=".cls", mode="w", encoding="utf-8") as tmp:
             tmp.write(source_code)
             tmp_path = tmp.name
 
         try:
+            # Run PMD via bash
             result = subprocess.run(
-                [
-                    PMD_CMD,
-                    "check",
-                    "-d", tmp_path,
-                    "-R", RULESET,
-                    "-f", "json"
-                ],
+                ["bash", PMD_CMD, "check", "-d", tmp_path, "-R", RULESET, "-f", "json"],
                 capture_output=True,
                 text=True,
                 check=True
             )
 
+            # Parse PMD JSON output
             parsed_output = json.loads(result.stdout) if result.stdout else {}
             files = parsed_output.get("files", [])
             for f in files:
@@ -48,6 +44,7 @@ def run_pmd():
                     v["className"] = name
                     combined_violations.append(v)
 
+            # Capture warnings
             if result.stderr:
                 warnings_list.append(f"Class {name}: {result.stderr.strip()}")
 
