@@ -1,86 +1,101 @@
-import os
+from flask import Flask, request, jsonify
 import subprocess
 import tempfile
+import os
 import json
-from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 
+# PMD version
 PMD_VERSION = "7.17.0"
-PMD_ZIP_URL = f"https://github.com/pmd/pmd/releases/download/pmd_releases/{PMD_VERSION}/pmd-dist-{PMD_VERSION}-bin.zip"
-
-# Correct extracted folder name
-PMD_DIR = f"/tmp/pmd-dist-{PMD_VERSION}"
-PMD_CMD = f"{PMD_DIR}/bin/run.sh"
-RULESET = f"{PMD_DIR}/rulesets/apex/quickstart.xml"
+PMD_ZIP = f"pmd-dist-{PMD_VERSION}-bin.zip"
+PMD_DIR = f"/tmp/pmd-bin-{PMD_VERSION}"  # unzip folder is pmd-bin-<version>
+PMD_PATH = f"{PMD_DIR}/bin/run.sh"
+RULESET = "rulesets/apex/quickstart.xml"
 
 
 def setup_pmd():
-    """Download and unzip PMD if not already installed"""
-    if not os.path.exists(PMD_CMD):
+    """Download and unzip PMD if not already present"""
+    if not os.path.exists(PMD_PATH):
         try:
-            subprocess.run(
-                [
-                    "curl", "-L", "-o", "/tmp/pmd.zip", PMD_ZIP_URL
-                ],
-                check=True
-            )
-            subprocess.run(
-                ["unzip", "-o", "/tmp/pmd.zip", "-d", "/tmp/"],
-                check=True
-            )
-            os.remove("/tmp/pmd.zip")
+            # Download PMD
+            subprocess.run([
+                "curl", "-L", "-o", PMD_ZIP,
+                f"https://github.com/pmd/pmd/releases/download/pmd_releases/{PMD_VERSION}/{PMD_ZIP}"
+            ], check=True)
+
+            # Unzip to /tmp
+            subprocess.run(["unzip", PMD_ZIP, "-d", "/tmp/"], check=True)
+            os.remove(PMD_ZIP)
+
+            # Make run.sh executable
+            subprocess.run(["chmod", "+x", PMD_PATH], check=True)
+
         except Exception as e:
-            return str(e)
-    return None
+            return {"status": "error", "message": f"PMD setup failed: {str(e)}"}
+
+    return {"status": "ok"}
+
+
+@app.route("/", methods=["GET"])
+def home():
+    return jsonify({
+        "message": "PMD Flask API is running. Use POST /analyze to analyze Apex classes."
+    })
 
 
 @app.route("/analyze", methods=["POST"])
 def analyze_apex_classes():
-    error = setup_pmd()
-    if error:
-        return jsonify({"status": "error", "message": f"PMD setup failed: {error}"}), 500
+    # Ensure PMD is installed
+    setup_status = setup_pmd()
+    if setup_status["status"] == "error":
+        return jsonify(setup_status), 500
 
-    try:
-        data = request.get_json() or {}
-        classes = data.get("classes", [])
+    data = request.get_json() or {}
+    classes = data.get("classes", [])
 
-        results = []
-        for cls in classes:
-            name = cls.get("name", "UnknownClass")
-            source_code = cls.get("source", "")
+    combined_violations = []
+    warnings_list = []
 
-            with tempfile.NamedTemporaryFile(mode="w+", suffix=".cls", delete=False) as tmp:
-                tmp.write(source_code)
-                tmp.flush()
-                tmp_path = tmp.name
+    for cls in classes:
+        name = cls.get("name", "UnknownClass")
+        source_code = cls.get("source", "")
 
-            try:
-                result = subprocess.run(
-                    [
-                        PMD_CMD,
-                        "check",
-                        "-d", tmp_path,
-                        "-R", RULESET,
-                        "-f", "json"
-                    ],
-                    capture_output=True,
-                    text=True,
-                    check=True
-                )
-                output = json.loads(result.stdout) if result.stdout else {}
-                results.append({"class": name, "violations": output.get("files", [])})
-            except subprocess.CalledProcessError as e:
-                results.append({
-                    "class": name,
-                    "error": e.stderr or "PMD execution failed"
-                })
-            finally:
-                os.unlink(tmp_path)
+        # Write source to temp file
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".cls", mode="w", encoding="utf-8") as tmp:
+            tmp.write(source_code)
+            tmp_path = tmp.name
 
-        return jsonify({"status": "success", "results": results})
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+        # Run PMD
+        try:
+            result = subprocess.run([
+                PMD_PATH,
+                "check",
+                "-d", tmp_path,
+                "-R", RULESET,
+                "-f", "json"
+            ], capture_output=True, text=True)
+
+            os.remove(tmp_path)
+
+            # Parse JSON output
+            parsed_output = json.loads(result.stdout) if result.stdout else {}
+            files = parsed_output.get("files", [])
+            for f in files:
+                for v in f.get("violations", []):
+                    v["className"] = name
+                    combined_violations.append(v)
+
+            if result.stderr:
+                warnings_list.append(f"Class {name}: {result.stderr.strip()}")
+
+        except Exception as e:
+            combined_violations.append({"parseError": str(e), "className": name})
+
+    return jsonify({
+        "violations": combined_violations,
+        "warnings": warnings_list
+    })
 
 
 if __name__ == "__main__":
