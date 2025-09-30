@@ -6,26 +6,26 @@ import json
 
 app = Flask(__name__)
 
-# PMD version
+# PMD version and Linux ZIP
 PMD_VERSION = "7.17.0"
-PMD_ZIP = f"pmd-dist-{PMD_VERSION}-bin.zip"
-PMD_DIR = f"/tmp/pmd-bin-{PMD_VERSION}"  # unzip folder is pmd-bin-<version>
+PMD_ZIP = f"pmd-bin-{PMD_VERSION}.zip"
+PMD_DIR = f"/tmp/pmd-bin-{PMD_VERSION}"   # unzipped folder
 PMD_PATH = f"{PMD_DIR}/bin/run.sh"
-RULESET = "rulesets/apex/quickstart.xml"
+PMD_URL = f"https://github.com/pmd/pmd/releases/download/pmd_releases/{PMD_VERSION}/{PMD_ZIP}"
+RULESET = f"{PMD_DIR}/rulesets/apex/quickstart.xml"
 
 
 def setup_pmd():
     """Download and unzip PMD if not already present"""
     if not os.path.exists(PMD_PATH):
         try:
-            # Download PMD
+            # Download Linux PMD ZIP
             subprocess.run([
-                "curl", "-L", "-o", PMD_ZIP,
-                f"https://github.com/pmd/pmd/releases/download/pmd_releases/{PMD_VERSION}/{PMD_ZIP}"
+                "curl", "-L", "-o", PMD_ZIP, PMD_URL
             ], check=True)
 
             # Unzip to /tmp
-            subprocess.run(["unzip", PMD_ZIP, "-d", "/tmp/"], check=True)
+            subprocess.run(["unzip", "-o", PMD_ZIP, "-d", "/tmp/"], check=True)
             os.remove(PMD_ZIP)
 
             # Make run.sh executable
