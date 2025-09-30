@@ -10,7 +10,9 @@ app = Flask(__name__)
 
 PMD_VERSION = "7.17.0"
 PMD_ZIP_URL = f"https://github.com/pmd/pmd/releases/download/pmd_releases/{PMD_VERSION}/pmd-dist-{PMD_VERSION}-bin.zip"
-PMD_DIR = f"/tmp/pmd-dist-{PMD_VERSION}"
+
+# NOTE: Extracted folder name is "pmd-bin-<version>", not "pmd-dist"
+PMD_DIR = f"/tmp/pmd-bin-{PMD_VERSION}"
 PMD_CMD = f"{PMD_DIR}/bin/run.sh"
 RULESET = f"{PMD_DIR}/rulesets/apex/quickstart.xml"
 
