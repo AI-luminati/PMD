@@ -6,14 +6,14 @@ import json
 
 app = Flask(__name__)
 
-# PMD path for Linux (Railway)
-PMD_PATH = "/opt/pmd-bin-7.17.0/bin/run.sh"  # PMD shell script
-RULESET = "rulesets/apex/quickstart.xml"      # Apex ruleset
+# PMD command (run.sh is in PATH via Dockerfile)
+PMD_CMD = "run.sh"
+RULESET = "rulesets/apex/quickstart.xml"
 
 @app.route("/run", methods=["POST"])
 def run_pmd():
     data = request.get_json()
-    classes = data.get("classes", [])  # Expecting [{"name":..., "source":...}]
+    classes = data.get("classes", [])
 
     combined_violations = []
     warnings_list = []
@@ -22,25 +22,22 @@ def run_pmd():
         name = cls.get("name", "UnknownClass")
         source_code = cls.get("source", "")
 
-        # Write class to a temp file (UTF-8 encoding)
+        # Write class to temp file (UTF-8)
         with tempfile.NamedTemporaryFile(delete=False, suffix=".cls", mode="w", encoding="utf-8") as tmp:
             tmp.write(source_code)
             tmp_path = tmp.name
 
-        # Run PMD
         try:
             result = subprocess.run([
-                PMD_PATH,
+                PMD_CMD,
                 "check",
                 "-d", tmp_path,
                 "-R", RULESET,
                 "-f", "json"
             ], capture_output=True, text=True, check=True)
 
-            # Parse PMD output
             parsed_output = json.loads(result.stdout) if result.stdout else {}
-            files = parsed_output.get("files", [])
-            for f in files:
+            for f in parsed_output.get("files", []):
                 for v in f.get("violations", []):
                     v["className"] = name
                     combined_violations.append(v)
@@ -53,7 +50,6 @@ def run_pmd():
         except Exception as e:
             combined_violations.append({"parseError": str(e), "className": name})
         finally:
-            # Clean up temp file
             os.remove(tmp_path)
 
     return jsonify({
