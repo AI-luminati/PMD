@@ -4,29 +4,32 @@ import tempfile
 import os
 import json
 import zipfile
+import shutil
 
 app = Flask(__name__)
 
-# PMD setup
+# PMD version and URLs
 PMD_VERSION = "7.17.0"
-LOCAL_ZIP_PATH = os.path.join("pmd", f"pmd-dist-{PMD_VERSION}-bin.zip")  # Updated ZIP
-PMD_DIR = f"/tmp/pmd-dist-{PMD_VERSION}-bin"  # unzipped folder in /tmp
-PMD_PATH = f"{PMD_DIR}/bin/run.sh"
+PMD_ZIP = f"pmd-dist-{PMD_VERSION}-bin.zip"
+PMD_DIR = f"/tmp/pmd-bin-{PMD_VERSION}"  # unzipped folder
+PMD_PATH = f"{PMD_DIR}/bin/pmd"  # executable
+PMD_URL = f"https://github.com/pmd/pmd/releases/download/pmd_releases%2F{PMD_VERSION}/{PMD_ZIP}"
 RULESET = f"{PMD_DIR}/rulesets/apex/quickstart.xml"
 
 
 def setup_pmd():
-    """Unzip PMD if not already present"""
+    """Download and unzip PMD if not already present"""
     if not os.path.exists(PMD_PATH):
         try:
-            if not os.path.exists(LOCAL_ZIP_PATH):
-                return {"status": "error", "message": f"PMD ZIP not found at {LOCAL_ZIP_PATH}"}
+            # Download PMD ZIP
+            subprocess.run(["wget", "-O", PMD_ZIP, PMD_URL], check=True)
 
-            # Unzip using Python's zipfile
-            with zipfile.ZipFile(LOCAL_ZIP_PATH, 'r') as zip_ref:
+            # Unzip
+            with zipfile.ZipFile(PMD_ZIP, 'r') as zip_ref:
                 zip_ref.extractall("/tmp/")
+            os.remove(PMD_ZIP)
 
-            # Make run.sh executable
+            # Make pmd executable
             subprocess.run(["chmod", "+x", PMD_PATH], check=True)
 
         except Exception as e:
@@ -59,13 +62,13 @@ def analyze_apex_classes():
         name = cls.get("name", "UnknownClass")
         source_code = cls.get("source", "")
 
-        # Write source to temporary .cls file
+        # Write source to temp file
         with tempfile.NamedTemporaryFile(delete=False, suffix=".cls", mode="w", encoding="utf-8") as tmp:
             tmp.write(source_code)
             tmp_path = tmp.name
 
-        # Run PMD analysis
         try:
+            # Run PMD check
             result = subprocess.run([
                 PMD_PATH,
                 "check",
@@ -76,6 +79,9 @@ def analyze_apex_classes():
 
             os.remove(tmp_path)
 
+            if result.stderr:
+                warnings_list.append(f"Class {name}: {result.stderr.strip()}")
+
             # Parse JSON output
             parsed_output = json.loads(result.stdout) if result.stdout else {}
             files = parsed_output.get("files", [])
@@ -83,9 +89,6 @@ def analyze_apex_classes():
                 for v in f.get("violations", []):
                     v["className"] = name
                     combined_violations.append(v)
-
-            if result.stderr:
-                warnings_list.append(f"Class {name}: {result.stderr.strip()}")
 
         except Exception as e:
             combined_violations.append({"parseError": str(e), "className": name})
