@@ -4,7 +4,7 @@ import tempfile
 import os
 import json
 import zipfile
-import shutil
+import urllib.request
 
 app = Flask(__name__)
 
@@ -12,7 +12,7 @@ app = Flask(__name__)
 PMD_VERSION = "7.17.0"
 PMD_ZIP = f"pmd-dist-{PMD_VERSION}-bin.zip"
 PMD_DIR = f"/tmp/pmd-bin-{PMD_VERSION}"  # unzipped folder
-PMD_PATH = f"{PMD_DIR}/bin/pmd"  # executable
+PMD_PATH = f"{PMD_DIR}/bin/pmd"  # PMD executable
 PMD_URL = f"https://github.com/pmd/pmd/releases/download/pmd_releases%2F{PMD_VERSION}/{PMD_ZIP}"
 RULESET = f"{PMD_DIR}/rulesets/apex/quickstart.xml"
 
@@ -21,15 +21,18 @@ def setup_pmd():
     """Download and unzip PMD if not already present"""
     if not os.path.exists(PMD_PATH):
         try:
-            # Download PMD ZIP
-            subprocess.run(["wget", "-O", PMD_ZIP, PMD_URL], check=True)
+            zip_tmp_path = f"/tmp/{PMD_ZIP}"
+            # Download PMD ZIP if missing
+            if not os.path.exists(zip_tmp_path):
+                print("Downloading PMD ZIP...")
+                urllib.request.urlretrieve(PMD_URL, zip_tmp_path)
 
             # Unzip
-            with zipfile.ZipFile(PMD_ZIP, 'r') as zip_ref:
+            with zipfile.ZipFile(zip_tmp_path, 'r') as zip_ref:
                 zip_ref.extractall("/tmp/")
-            os.remove(PMD_ZIP)
+            os.remove(zip_tmp_path)
 
-            # Make pmd executable
+            # Make PMD executable
             subprocess.run(["chmod", "+x", PMD_PATH], check=True)
 
         except Exception as e:
@@ -62,7 +65,7 @@ def analyze_apex_classes():
         name = cls.get("name", "UnknownClass")
         source_code = cls.get("source", "")
 
-        # Write source to temp file
+        # Write source to temporary .cls file
         with tempfile.NamedTemporaryFile(delete=False, suffix=".cls", mode="w", encoding="utf-8") as tmp:
             tmp.write(source_code)
             tmp_path = tmp.name
