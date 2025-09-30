@@ -6,9 +6,15 @@ ENV PMD_VERSION=7.17.0
 ENV PMD_DIR=/opt/pmd-bin-$PMD_VERSION
 ENV PATH=$PMD_DIR/bin:$PATH
 
-# Install Java, wget, unzip
+# Install required packages for Java + wget + unzip
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    openjdk-17-jdk wget unzip \
+    openjdk-17-jdk-headless \
+    wget \
+    unzip \
+    ca-certificates \
+    curl \
+    gnupg \
+    dirmngr \
     && rm -rf /var/lib/apt/lists/*
 
 # Download PMD
@@ -26,5 +32,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Expose port
 EXPOSE 5000
 
-# Run Flask app
+# Start Flask app
 CMD ["python", "app.py"]
